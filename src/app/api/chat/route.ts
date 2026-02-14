@@ -10,6 +10,41 @@ interface ChatRequest {
   location: Location;
 }
 
+// Simple content moderation - flag obvious misuse
+function checkContent(message: string): { flagged: boolean; reason?: string } {
+  const lowerMsg = message.toLowerCase();
+
+  // Off-topic patterns (not practicing social skills)
+  const offTopicPatterns = [
+    /write (me )?(a |an |some )?(code|script|program|essay|story)/i,
+    /help (me )?(with|do) (my )?(homework|assignment|project)/i,
+    /what is (the |a )?(capital|president|answer)/i,
+    /solve (this|the) (math|equation|problem)/i,
+    /translate (this|the)/i,
+  ];
+
+  for (const pattern of offTopicPatterns) {
+    if (pattern.test(message)) {
+      return { flagged: true, reason: 'off_topic' };
+    }
+  }
+
+  // Inappropriate patterns
+  const inappropriatePatterns = [
+    /\b(send|show|give) (me )?(nudes|pics|photos)/i,
+    /\b(come|go) (to |over )?(my|your) (place|house|room)/i,
+    /\bhow old are you\b.*\b(really|actually)\b/i,
+  ];
+
+  for (const pattern of inappropriatePatterns) {
+    if (pattern.test(message)) {
+      return { flagged: true, reason: 'inappropriate' };
+    }
+  }
+
+  return { flagged: false };
+}
+
 function buildSystemPrompt(persona: Persona, location: Location): string {
   return `You are roleplaying as ${persona.name}, a ${persona.age}-year-old ${persona.occupation}.
 
@@ -45,7 +80,8 @@ IMPORTANT:
 - Never break character or mention you're an AI
 - React authentically to both good and bad approaches
 - If they're being creepy or inappropriate, you can shut them down
-- If they're being genuine and interesting, show that you're engaged`;
+- If they're being genuine and interesting, show that you're engaged
+- If they ask you to do something outside of a normal conversation (like help with homework, write code, etc.), politely decline and steer back to the conversation`;
 }
 
 export async function POST(request: NextRequest) {
@@ -58,6 +94,19 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    // Check the latest user message for misuse
+    const latestUserMsg = messages.filter(m => m.role === 'user').pop();
+    let warning: string | null = null;
+
+    if (latestUserMsg) {
+      const modResult = checkContent(latestUserMsg.content);
+      if (modResult.flagged) {
+        warning = modResult.reason === 'off_topic'
+          ? 'Please keep the conversation focused on practicing social skills.'
+          : 'Please keep the conversation appropriate.';
+      }
     }
 
     const systemPrompt = buildSystemPrompt(persona, location);
@@ -75,7 +124,11 @@ export async function POST(request: NextRequest) {
     const assistantMessage =
       response.content[0].type === 'text' ? response.content[0].text : '';
 
-    return NextResponse.json({ response: assistantMessage });
+    return NextResponse.json({
+      response: assistantMessage,
+      warning,
+      flagged: !!warning,
+    });
   } catch (error) {
     console.error('Chat API error:', error);
     return NextResponse.json(

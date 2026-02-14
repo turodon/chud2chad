@@ -17,14 +17,16 @@ export const PLANS = {
     name: 'Free',
     price: 0,
     sessionsPerDay: 3,
-    messagesPerSession: 10,
+    messagesPerSession: 15,
+    monthlyMessages: 100,
   },
   pro: {
     name: 'Pro',
     price: 999, // $9.99 in cents
     priceId: process.env.STRIPE_PRO_PRICE_ID!,
-    sessionsPerDay: Infinity,
-    messagesPerSession: Infinity,
+    sessionsPerDay: 50,
+    messagesPerSession: 50,
+    monthlyMessages: 2000,
   },
 } as const;
 

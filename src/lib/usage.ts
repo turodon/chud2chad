@@ -6,22 +6,30 @@ interface UsageState {
   plan: PlanType;
   sessionsToday: number;
   messagesThisSession: number;
+  messagesThisMonth: number;
   lastSessionDate: string;
+  lastMonthReset: string;
   subscriptionId: string | null;
+  strikes: number;
+  lastStrikeReason: string | null;
 
   // Actions
   setPlan: (plan: PlanType) => void;
   setSubscriptionId: (id: string | null) => void;
-  startSession: () => boolean; // returns false if limit reached
-  addMessage: () => boolean; // returns false if limit reached
+  startSession: () => boolean;
+  addMessage: () => boolean;
+  addStrike: (reason: string) => void;
   resetSession: () => void;
   canStartSession: () => boolean;
   canSendMessage: () => boolean;
   getRemainingMessages: () => number;
+  getRemainingMonthlyMessages: () => number;
   getRemainingSessions: () => number;
+  isThrottled: () => boolean;
 }
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
+const getMonthString = () => new Date().toISOString().slice(0, 7); // YYYY-MM
 
 export const useUsageStore = create<UsageState>()(
   persist(
@@ -29,8 +37,12 @@ export const useUsageStore = create<UsageState>()(
       plan: 'free',
       sessionsToday: 0,
       messagesThisSession: 0,
+      messagesThisMonth: 0,
       lastSessionDate: getTodayString(),
+      lastMonthReset: getMonthString(),
       subscriptionId: null,
+      strikes: 0,
+      lastStrikeReason: null,
 
       setPlan: (plan) => set({ plan }),
 
@@ -39,14 +51,31 @@ export const useUsageStore = create<UsageState>()(
       startSession: () => {
         const state = get();
         const today = getTodayString();
+        const currentMonth = getMonthString();
 
         // Reset daily count if new day
         if (state.lastSessionDate !== today) {
           set({ sessionsToday: 0, lastSessionDate: today });
         }
 
+        // Reset monthly count if new month
+        if (state.lastMonthReset !== currentMonth) {
+          set({ messagesThisMonth: 0, lastMonthReset: currentMonth, strikes: 0 });
+        }
+
+        // Check if throttled (3+ strikes)
+        if (state.strikes >= 3) {
+          return false;
+        }
+
         const limits = PLANS[state.plan];
-        if (state.sessionsToday >= limits.sessionsPerDay) {
+        const sessionsToday = state.lastSessionDate !== today ? 0 : state.sessionsToday;
+        if (sessionsToday >= limits.sessionsPerDay) {
+          return false;
+        }
+
+        // Check monthly limit
+        if (state.messagesThisMonth >= limits.monthlyMessages) {
           return false;
         }
 
@@ -60,15 +89,40 @@ export const useUsageStore = create<UsageState>()(
       addMessage: () => {
         const state = get();
         const limits = PLANS[state.plan];
+        const currentMonth = getMonthString();
 
+        // Reset monthly count if new month
+        if (state.lastMonthReset !== currentMonth) {
+          set({ messagesThisMonth: 0, lastMonthReset: currentMonth, strikes: 0 });
+        }
+
+        // Check if throttled
+        if (state.strikes >= 3) {
+          return false;
+        }
+
+        // Check session limit
         if (state.messagesThisSession >= limits.messagesPerSession) {
+          return false;
+        }
+
+        // Check monthly limit
+        if (state.messagesThisMonth >= limits.monthlyMessages) {
           return false;
         }
 
         set((s) => ({
           messagesThisSession: s.messagesThisSession + 1,
+          messagesThisMonth: s.messagesThisMonth + 1,
         }));
         return true;
+      },
+
+      addStrike: (reason: string) => {
+        set((s) => ({
+          strikes: s.strikes + 1,
+          lastStrikeReason: reason,
+        }));
       },
 
       resetSession: () => set({ messagesThisSession: 0 }),
@@ -76,22 +130,54 @@ export const useUsageStore = create<UsageState>()(
       canStartSession: () => {
         const state = get();
         const today = getTodayString();
+        const currentMonth = getMonthString();
+
+        // Check throttle
+        if (state.strikes >= 3) return false;
+
         const sessionsToday = state.lastSessionDate !== today ? 0 : state.sessionsToday;
         const limits = PLANS[state.plan];
-        return sessionsToday < limits.sessionsPerDay;
+
+        // Check daily sessions
+        if (sessionsToday >= limits.sessionsPerDay) return false;
+
+        // Check monthly messages
+        const messagesThisMonth = state.lastMonthReset !== currentMonth ? 0 : state.messagesThisMonth;
+        if (messagesThisMonth >= limits.monthlyMessages) return false;
+
+        return true;
       },
 
       canSendMessage: () => {
         const state = get();
         const limits = PLANS[state.plan];
-        return state.messagesThisSession < limits.messagesPerSession;
+        const currentMonth = getMonthString();
+
+        // Check throttle
+        if (state.strikes >= 3) return false;
+
+        // Check session limit
+        if (state.messagesThisSession >= limits.messagesPerSession) return false;
+
+        // Check monthly limit
+        const messagesThisMonth = state.lastMonthReset !== currentMonth ? 0 : state.messagesThisMonth;
+        if (messagesThisMonth >= limits.monthlyMessages) return false;
+
+        return true;
       },
 
       getRemainingMessages: () => {
         const state = get();
         const limits = PLANS[state.plan];
-        if (limits.messagesPerSession === Infinity) return Infinity;
         return Math.max(0, limits.messagesPerSession - state.messagesThisSession);
+      },
+
+      getRemainingMonthlyMessages: () => {
+        const state = get();
+        const limits = PLANS[state.plan];
+        const currentMonth = getMonthString();
+        const messagesThisMonth = state.lastMonthReset !== currentMonth ? 0 : state.messagesThisMonth;
+        return Math.max(0, limits.monthlyMessages - messagesThisMonth);
       },
 
       getRemainingSessions: () => {
@@ -99,8 +185,11 @@ export const useUsageStore = create<UsageState>()(
         const today = getTodayString();
         const sessionsToday = state.lastSessionDate !== today ? 0 : state.sessionsToday;
         const limits = PLANS[state.plan];
-        if (limits.sessionsPerDay === Infinity) return Infinity;
         return Math.max(0, limits.sessionsPerDay - sessionsToday);
+      },
+
+      isThrottled: () => {
+        return get().strikes >= 3;
       },
     }),
     { name: 'c2c-usage' }
