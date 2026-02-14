@@ -2,19 +2,31 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useUIStore, usePracticeStore, useSessionStore } from '@/lib/store';
-import { Persona, Location, OutcomeType } from '@/lib/types';
+import { useUsageStore } from '@/lib/usage';
+import { Persona, OutcomeType } from '@/lib/types';
 import { generatePersona, generateOpeners } from '@/lib/persona';
+import { Paywall } from './Paywall';
 
 export function PracticeModal() {
   const { selectedLocation, isPracticeModalOpen, closePracticeModal } = useUIStore();
   const { currentPractice, startPractice, addMessage, endPractice } = usePracticeStore();
   const { addSession } = useSessionStore();
+  const {
+    plan,
+    startSession: trackStartSession,
+    addMessage: trackAddMessage,
+    canStartSession,
+    canSendMessage,
+    getRemainingMessages,
+    getRemainingSessions
+  } = useUsageStore();
 
   const [persona, setPersona] = useState<Persona | null>(null);
   const [openers, setOpeners] = useState<string[]>([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showOutcome, setShowOutcome] = useState(false);
+  const [showPaywall, setShowPaywall] = useState<'sessions' | 'messages' | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,14 +46,33 @@ export function PracticeModal() {
 
   const handleStartPractice = () => {
     if (!selectedLocation || !persona) return;
+
+    // Check if user can start a session
+    if (!canStartSession()) {
+      setShowPaywall('sessions');
+      return;
+    }
+
+    // Track the session start
+    trackStartSession();
     startPractice(selectedLocation, persona);
   };
 
   const handleSendMessage = async () => {
     if (!userInput.trim() || isLoading || !currentPractice) return;
 
+    // Check if user can send a message
+    if (!canSendMessage()) {
+      setShowPaywall('messages');
+      return;
+    }
+
     const message = userInput.trim();
     setUserInput('');
+
+    // Track the message
+    trackAddMessage();
+
     addMessage({ role: 'user', content: message });
     setIsLoading(true);
 
@@ -101,9 +132,17 @@ export function PracticeModal() {
 
   if (!isPracticeModalOpen || !selectedLocation) return null;
 
+  const remainingMessages = getRemainingMessages();
+  const remainingSessions = getRemainingSessions();
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] flex items-center justify-center">
-      <div className="w-[520px] h-[90vh] max-h-[800px] bg-[#0d0d15] border border-primary/20 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+    <>
+      {showPaywall && (
+        <Paywall type={showPaywall} onClose={() => setShowPaywall(null)} />
+      )}
+
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+        <div className="w-full max-w-[520px] h-[90vh] max-h-[800px] bg-[#0d0d15] border border-primary/20 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
         {/* Persona Card */}
         {persona && (
           <div className="p-5 bg-gradient-to-r from-primary/10 to-accent/10 border-b border-white/[0.08] relative">
@@ -209,6 +248,23 @@ export function PracticeModal() {
         {/* Input Area (only when practicing) */}
         {currentPractice && !showOutcome && (
           <div className="p-4 border-t border-white/[0.08]">
+            {/* Usage indicator for free users */}
+            {plan === 'free' && remainingMessages !== Infinity && (
+              <div className="mb-2 flex items-center justify-between text-[11px]">
+                <span className="text-gray-500">
+                  {remainingMessages} messages left this session
+                </span>
+                {remainingMessages <= 3 && (
+                  <button
+                    onClick={() => setShowPaywall('messages')}
+                    className="text-primary hover:underline"
+                  >
+                    Upgrade for unlimited
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <input
                 type="text"
@@ -266,5 +322,6 @@ export function PracticeModal() {
         )}
       </div>
     </div>
+    </>
   );
 }
