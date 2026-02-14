@@ -6,6 +6,8 @@ import { RankingsPanel } from '@/components/RankingsPanel';
 import { StatsPanel } from '@/components/StatsPanel';
 import { SessionTracker } from '@/components/SessionTracker';
 import { PracticeModal } from '@/components/PracticeModal';
+import { MobileNav } from '@/components/MobileNav';
+import { MobileStatsPanel } from '@/components/MobileStatsPanel';
 
 // Dynamic import for Map to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import('@/components/MapView'), {
@@ -32,11 +34,21 @@ export default function Home() {
       {/* Rankings Panel (Right) */}
       <RankingsPanel />
 
-      {/* Stats Panel (Bottom Left) */}
-      <StatsPanel />
+      {/* Stats Panel (Bottom Left) - Desktop only */}
+      <div className="hidden md:block">
+        <StatsPanel />
+      </div>
 
-      {/* Session Tracker (Top Right, below rankings) */}
-      <SessionTracker />
+      {/* Session Tracker (Top Right, below rankings) - Desktop only */}
+      <div className="hidden md:block">
+        <SessionTracker />
+      </div>
+
+      {/* Mobile Navigation */}
+      <MobileNav />
+
+      {/* Mobile Stats Panel */}
+      <MobileStatsPanel />
 
       {/* Practice Modal */}
       <PracticeModal />

@@ -1,9 +1,10 @@
 'use client';
 
-import { useFilterStore } from '@/lib/store';
+import { useFilterStore, useUIStore } from '@/lib/store';
 import { TimeSlot, DayOfWeek, Demographic, Category } from '@/lib/types';
 import { getTimeSlotEmoji, getDayLabel } from '@/lib/scoring';
 import { CATEGORY_ICONS, CATEGORY_LABELS } from '@/lib/data/locations';
+import { X } from 'lucide-react';
 
 const TIME_SLOTS: TimeSlot[] = ['morning', 'afternoon', 'evening', 'latenight'];
 const DAYS: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -27,12 +28,37 @@ export function ControlPanel() {
     toggleCategory,
     setRadius,
   } = useFilterStore();
+  const { activePanel, setActivePanel } = useUIStore();
+
+  const isMobileVisible = activePanel === 'filters';
 
   return (
-    <div className="fixed top-5 left-5 z-[1000] glass-panel p-6 w-80 max-h-[calc(100vh-40px)] overflow-y-auto">
-      {/* Header */}
-      <h1 className="text-lg font-bold gradient-text mb-1">Chud2Chad</h1>
-      <p className="text-[11px] text-gray-500 mb-5">C2C Social Skills Trainer</p>
+    <div className={`
+      fixed z-[1000] glass-panel overflow-y-auto
+      md:top-5 md:left-5 md:w-80 md:max-h-[calc(100vh-40px)] md:p-6 md:rounded-2xl
+      inset-0 p-6 pb-24 rounded-none
+      transition-transform duration-300 ease-out
+      ${isMobileVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
+    `}>
+      {/* Mobile Header */}
+      <div className="flex items-center justify-between mb-4 md:hidden">
+        <div>
+          <h1 className="text-xl font-bold gradient-text">Filters</h1>
+          <p className="text-[11px] text-gray-500">Customize your search</p>
+        </div>
+        <button
+          onClick={() => setActivePanel(null)}
+          className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:block">
+        <h1 className="text-lg font-bold gradient-text mb-1">Chud2Chad</h1>
+        <p className="text-[11px] text-gray-500 mb-5">C2C Social Skills Trainer</p>
+      </div>
 
       {/* Radius Filter */}
       <div className="mb-4">
@@ -44,7 +70,7 @@ export function ControlPanel() {
             <button
               key={r}
               onClick={() => setRadius(r)}
-              className={`flex-1 btn-secondary text-[13px] font-semibold py-2.5 ${
+              className={`flex-1 btn-secondary text-[13px] font-semibold py-3 md:py-2.5 ${
                 filters.radius === r ? 'active' : ''
               }`}
             >
@@ -59,17 +85,17 @@ export function ControlPanel() {
         <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
           Time of Day
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-4 md:grid-cols-2 gap-2">
           {TIME_SLOTS.map((slot) => (
             <button
               key={slot}
               onClick={() => setTimeSlot(slot)}
-              className={`btn-secondary text-center py-2.5 ${
+              className={`btn-secondary text-center py-3 md:py-2.5 ${
                 filters.timeSlot === slot ? 'active' : ''
               }`}
             >
               <span className="text-lg block mb-1">{getTimeSlotEmoji(slot)}</span>
-              <span className="text-[12px] capitalize">{slot === 'latenight' ? 'Late' : slot}</span>
+              <span className="text-[11px] md:text-[12px] capitalize">{slot === 'latenight' ? 'Late' : slot}</span>
             </button>
           ))}
         </div>
@@ -85,7 +111,7 @@ export function ControlPanel() {
             <button
               key={day}
               onClick={() => setDayOfWeek(day)}
-              className={`flex-1 btn-secondary text-[10px] font-semibold py-2 px-1 ${
+              className={`flex-1 btn-secondary text-[11px] md:text-[10px] font-semibold py-3 md:py-2 px-1 ${
                 filters.dayOfWeek === day ? 'active' : ''
               }`}
             >
@@ -100,12 +126,12 @@ export function ControlPanel() {
         <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
           Category
         </label>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2 md:gap-1.5">
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => toggleCategory(cat)}
-              className={`chip ${filters.categories.includes(cat) ? 'active' : ''}`}
+              className={`chip text-[13px] md:text-[12px] py-2 md:py-1.5 ${filters.categories.includes(cat) ? 'active' : ''}`}
             >
               {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]}
             </button>
@@ -118,12 +144,12 @@ export function ControlPanel() {
         <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
           Target Demographic
         </label>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2 md:gap-1.5">
           {DEMOGRAPHICS.map((demo) => (
             <button
               key={demo.key}
               onClick={() => toggleDemographic(demo.key)}
-              className={`chip ${filters.demographics.includes(demo.key) ? 'active' : ''}`}
+              className={`chip text-[13px] md:text-[12px] py-2 md:py-1.5 ${filters.demographics.includes(demo.key) ? 'active' : ''}`}
             >
               {demo.emoji} {demo.label}
             </button>

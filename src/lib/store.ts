@@ -172,7 +172,7 @@ interface UIState {
   selectedLocation: Location | null;
   isPracticeModalOpen: boolean;
   isRankingsOpen: boolean;
-  activePanel: 'filters' | 'rankings' | 'tracker' | null;
+  activePanel: 'filters' | 'rankings' | 'tracker' | 'map' | null;
   setSelectedLocation: (location: Location | null) => void;
   openPracticeModal: () => void;
   closePracticeModal: () => void;
@@ -184,7 +184,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedLocation: null,
   isPracticeModalOpen: false,
   isRankingsOpen: true,
-  activePanel: 'filters',
+  activePanel: null,
   setSelectedLocation: (location) => set({ selectedLocation: location }),
   openPracticeModal: () => set({ isPracticeModalOpen: true }),
   closePracticeModal: () => set({ isPracticeModalOpen: false }),
